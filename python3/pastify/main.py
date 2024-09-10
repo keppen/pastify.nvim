@@ -1,9 +1,11 @@
 from .type import Config
 from .validate import validate_config
-from PIL import ImageGrab
+from PIL import Image
 from asyncio import create_task, create_subprocess_shell, subprocess
+import subprocess as subproc
 from codecs import encode, decode
 from io import BytesIO
+import base64
 from json import loads
 from os import makedirs, path
 import time
@@ -39,8 +41,45 @@ class Pastify(object):
     def get_file_name(self):
         return vim.exec_lua('return require("pastify").getFileName()')
 
+    def grab_image_wsl(self):
+        try:
+            # Use PowerShell to get the clipboard image as a base64 encoded string
+            output = subproc.check_output(
+                [
+                    # "powershell.exe",
+                    # "-NoProfile",
+                    # "-Command",
+                    # "[convert]::ToBase64String((Get-Clipboard -Format Image).GetStream())",
+                    "powershell.exe",
+                    "-NoProfile",
+                    "-Command",
+                    """
+                    $image = Get-Clipboard -Format Image -ErrorAction SilentlyContinue;
+                    if ($image) {
+                        $stream = New-Object System.IO.MemoryStream;
+                        $image.Save($stream, [System.Drawing.Imaging.ImageFormat]::Png);
+                        [convert]::ToBase64String($stream.ToArray());
+                    } else {
+                        Write-Output "NoImage";
+                    }
+                    """,
+                ],
+                stderr=subproc.STDOUT,
+            )
+            # Decode the base64 output and convert it into an image
+            image_data = base64.b64decode(output.strip())
+            return Image.open(BytesIO(image_data))
+
+        except subproc.CalledProcessError as e:
+            print("Failed to access clipboard image:", e.output)
+            return None
+
+        except Exception as e:
+            print("An error occurred while reading the image:", str(e))
+            return None
+
     def paste_text(self, after) -> None:
-        img = ImageGrab.grabclipboard()
+        img = self.grab_image_wsl()
         # ImageGrab.grabclipboard returns either a: Image, List of file names or None (text)
         if img is None:
             # Get text from clipboard instead
