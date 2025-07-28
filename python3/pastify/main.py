@@ -108,6 +108,7 @@ class Pastify(object):
             return
 
         file_name = self.get_file_name()  # file name can be determined by lua
+        self.logger(f"{local_path}, {self.get_image_path_name()}, {file_name}", "INFO")
 
         if options["save"] in ["local", "local_file"]:
             if file_name == "":
